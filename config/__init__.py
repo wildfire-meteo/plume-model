@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
-from .style import CYCLE, COLORS, LINESTYLES, LINEWIDTHS, apply, run_color
+from .style import (COLORS, CYCLE, FIELD_CMAP, LINESTYLES, LINEWIDTHS, MARKERS,
+                    SEQUENTIAL_CMAP, apply, run_color, sweep_colors)
 
-__all__ = ["COLORS", "LINESTYLES", "LINEWIDTHS", "CYCLE", "apply", "run_color"]
+__all__ = ["COLORS", "LINESTYLES", "LINEWIDTHS", "MARKERS", "CYCLE", "SEQUENTIAL_CMAP",
+           "FIELD_CMAP", "apply", "run_color", "sweep_colors"]

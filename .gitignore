@@ -6,3 +6,4 @@ venv/
 build/
 dist/
 .DS_Store
+validation/output/

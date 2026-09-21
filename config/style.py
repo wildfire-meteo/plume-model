@@ -17,6 +17,7 @@
 """Repository-wide plotting conventions. Nothing below is decided in a script."""
 
 import matplotlib as mpl
+import numpy as np
 
 # Fixed order, never cycled past its length; checked for colour-vision separation.
 CYCLE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#4a3aa7", "#e34948"]
@@ -44,10 +45,22 @@ LINESTYLES = {
 
 LINEWIDTHS = {"profile": 2.0, "reference": 2.0, "guide": 1.0}
 
+# A sweep over a magnitude (H, area) is one hue, light to dark; 2D fields share one map.
+SEQUENTIAL_CMAP = "Blues"
+FIELD_CMAP = "viridis"
+
+MARKERS = {"condensed": "o", "reached_top": "x", "lcl": "o"}
+
 
 def run_color(i):
     """Colour of the i-th run in a sensitivity series; identity, so never rank-ordered."""
     return CYCLE[i % len(CYCLE)]
+
+
+def sweep_colors(n):
+    """n colours for the steps of a sweep, light to dark, kept clear of the white surface."""
+    cmap = mpl.colormaps[SEQUENTIAL_CMAP]
+    return [cmap(x) for x in np.linspace(0.45, 1.0, n)]
 
 
 def apply():
