@@ -52,7 +52,7 @@ plume = Plume(env, base, MortonEntrainment(fac_ent=0.0), full_ascent=True).ascen
 
 ### Validation runs
 
-Validation cases live in `validation/` and are run directly:
+Validation cases are in `validation/` :
 
 ```bash
 python validation/crosscheck_js.py
@@ -65,7 +65,7 @@ import config
 config.apply()
 ```
 
-### Cross-check against the reference implementation
+### Cross-check against (wildfire-meteo-dmt)[https://github.com/wildfire-meteo/wildfire-meteo-dmt]
 
 `validation/crosscheck_js.py` integrates a set of environments in both this package and the
 original JavaScript, and compares every returned array. It is local and optional: it needs
@@ -74,13 +74,4 @@ original JavaScript, and compares every returned array. It is local and optional
 
 ```bash
 WILDFIRE_METEO_DMT=/path/to/wildfire-meteo-dmt python validation/crosscheck_js.py
-```
-
-## Layout
-
-```
-plume_model/    the model: plume.py (integrator) + environment, thermo,
-                entrainment, surface
-config/         repository-wide plotting conventions
-validation/     test data and the runs that validate the model against it
 ```

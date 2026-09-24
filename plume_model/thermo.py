@@ -52,7 +52,7 @@ def esat_from_q(q, p):
 def dewpoint(q, p):
     """Dewpoint from specific humidity, inverting the Bolton formula."""
     es = esat_from_q(q, p)
-    lnr = np.log(np.maximum(TINY, es) / e0)
+    lnr = np.log(np.maximum(TINY, es / e0))
     Tc = b * lnr / (a - lnr)
     return Tc + T0
 

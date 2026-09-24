@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Repository-wide plotting conventions. Nothing below is decided in a script."""
+"""Repository plotting conventions."""
 
 import matplotlib as mpl
 import numpy as np
@@ -23,13 +23,13 @@ import numpy as np
 CYCLE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#4a3aa7", "#e34948"]
 
 COLORS = {
-    "env": "#52514e",      # environment, neutral so the plume carries the identity
+    "env": "#52514e",
     "plume": "#eb6834",
-    "les": "#2a78d6",      # reference data the model is validated against
+    "les": "#2a78d6",
     "obs": "#1a1a19",
-    "buoy": "#2a78d6",     # w-budget: buoyancy production
-    "drag": "#eb6834",     # w-budget: entrainment drag
-    "total": "#52514e",    # w-budget: sum
+    "buoy": "#2a78d6",
+    "drag": "#eb6834",
+    "total": "#52514e",
     "ent": "#2a78d6",
     "det": "#eb6834",
 }
@@ -38,18 +38,22 @@ LINESTYLES = {
     "env": "-",
     "plume": "-",
     "model": "-",
-    "reference": "--",     # LES or observations, against the model's solid line
+    "reference": "--",     # LES or observations
     "saturated": ":",
+    "envelope": (0, (5, 2, 1, 2)),  # upper percentile of the reference data
     "zero": (0, (1, 3)),
 }
 
-LINEWIDTHS = {"profile": 2.0, "reference": 2.0, "guide": 1.0}
+LINEWIDTHS = {"profile": 2.0, "reference": 2.0, "guide": 1.0, "envelope": 1.0}
+
+# Opacity of the band showing the spread of the reference data about its mean.
+BAND_ALPHA = 0.15
 
 # A sweep over a magnitude (H, area) is one hue, light to dark; 2D fields share one map.
 SEQUENTIAL_CMAP = "Blues"
 FIELD_CMAP = "viridis"
 
-MARKERS = {"condensed": "o", "reached_top": "x", "lcl": "o"}
+MARKERS = {"condensed": "o", "reached_top": "x", "lcl": "o", "case": "o"}
 
 
 def run_color(i):
@@ -66,7 +70,7 @@ def sweep_colors(n):
 def apply():
     """Set the repository's matplotlib defaults."""
     mpl.rcParams.update({
-        "figure.dpi": 120,
+        "figure.dpi": 200,
         "savefig.dpi": 200,
         "savefig.bbox": "tight",
         "font.size": 10,
