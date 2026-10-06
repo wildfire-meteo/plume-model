@@ -58,8 +58,10 @@ FLI_PROFILES = 10e6
 PROFILE_WINDS = [3.0, 9.0]
 
 
-def run_core(case, a=A_BUOYANT, fac_ent=FAC_ENT_BUOYANT, a_w=A_W, b_w=B_W, dz=DZ):
-    return run_model(case, BuoyantEntrainment(a, fac_ent=fac_ent), dz, a_w=a_w, b_w=b_w)
+def run_core(case, a=A_BUOYANT, fac_ent=FAC_ENT_BUOYANT, a_w=A_W, b_w=B_W, dz=DZ,
+             ventilated=False):
+    return run_model(case, BuoyantEntrainment(a, fac_ent=fac_ent), dz, a_w=a_w, b_w=b_w,
+                     ventilated=ventilated)
 
 
 def run_original(case, dz=DZ):
@@ -156,7 +158,8 @@ def main():
     cases = [les.LESCase(name) for name in les.case_names()]
 
     runs = [("reference", [run_original(c) for c in cases]),
-            ("default model", [run_core(c) for c in cases])]
+            ("default model", [run_core(c) for c in cases]),
+            ("ventilated base", [run_core(c, ventilated=True) for c in cases])]
     print_summary(cases, runs)
 
     sensitivity = [("default model", runs[1][1])]

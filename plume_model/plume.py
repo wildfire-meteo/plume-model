@@ -148,7 +148,7 @@ class Plume:
         self.v[0] = np.interp(self.h0, env.z, env.v)
 
         self.eps[0], self.delta[0] = self.entrainment_model.rates(
-            self.z[0], self.w[0], self.area[0], base.area, self.mass_flux[0], self.buoy[0])
+            self.z[0], self.w[0], self.area[0], base.fire_area, self.mass_flux[0], self.buoy[0])
         self.entrainment[0] = self.eps[0] * self.mass_flux[0]
         self.detrainment[0] = 0.0
         self.dw2dz_buoy[0] = 2 * self.a_w * self.buoy[0]
@@ -204,7 +204,7 @@ class Plume:
             M[i] *= np.exp(-self.delta_dyn[i] * dz)
 
         self.eps[i], self.delta[i] = self.entrainment_model.rates(
-            self.z[i], self.w[i], self.area[j], self.base.area, M[i], self.buoy[i])
+            self.z[i], self.w[i], self.area[j], self.base.fire_area, M[i], self.buoy[i])
         E[i] = self.eps[i] * M[i]
         self.detrainment[i] = (self.delta[i] + self.delta_dyn[i]) * M[i]
 

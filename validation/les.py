@@ -111,6 +111,8 @@ class LESCase:
         self.U = meta["U"]
         self.H = meta["mean_fire_heat_flux"]
         self.area_fire = meta["fire_area"]
+        self.fire_depth = meta["fire_depth"]
+        self.fire_width = meta["fire_width"]
         self.theta_0 = meta["theta_0"]
         self.times = ds.time.values.astype(float)
 

@@ -18,10 +18,10 @@ from . import entrainment, surface, thermo
 from .entrainment import BuoyantEntrainment, MortonEntrainment
 from .environment import Environment, environment_from_theta
 from .plume import Plume, find_lcl
-from .surface import PlumeBase
+from .surface import PlumeBase, VentilatedPlumeBase
 
 __all__ = [
     "thermo", "entrainment", "surface",
-    "Plume", "PlumeBase", "Environment", "environment_from_theta",
+    "Plume", "PlumeBase", "VentilatedPlumeBase", "Environment", "environment_from_theta",
     "MortonEntrainment", "BuoyantEntrainment", "find_lcl",
 ]

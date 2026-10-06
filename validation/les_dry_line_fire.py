@@ -35,7 +35,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 import config
-from plume_model import MortonEntrainment, Plume, PlumeBase
+from plume_model import MortonEntrainment, Plume, PlumeBase, VentilatedPlumeBase
 from plume_model.plume import A_W, B_W, DZ_PLUME
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -47,9 +47,13 @@ OUTPUT = Path(__file__).parent / "output" / "les_dry_line_fire"
 FLI_PROFILES = 10e6
 
 
-def run_model(case, entrainment, dz=DZ_PLUME, a_w=A_W, b_w=B_W):
+def run_model(case, entrainment, dz=DZ_PLUME, a_w=A_W, b_w=B_W, ventilated=False):
     env = case.environment()
-    base = PlumeBase(case.H, 0.0, case.area_fire, env, a_w=a_w, b_w=b_w)
+    if ventilated:
+        base = VentilatedPlumeBase(case.H, 0.0, case.area_fire, env,
+                                   aspect_ratio=case.fire_width / case.fire_depth, a_w=a_w, b_w=b_w)
+    else:
+        base = PlumeBase(case.H, 0.0, case.area_fire, env, a_w=a_w, b_w=b_w)
     return Plume(env, base, entrainment, dz=dz, a_w=a_w, b_w=b_w).ascend()
 
 

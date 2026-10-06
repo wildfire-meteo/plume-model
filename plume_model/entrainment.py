@@ -22,7 +22,7 @@ An entrainment model is any object with two methods:
     dynamic_detrainment(w, w_prev, dz)          -> delta_dyn
 
 The integrator calls them at every level, so a model may use as much or as little of the
-plume state as its formulation needs.
+plume state as its formulation needs. area_0 is the fire area.
 """
 
 import numpy as np
