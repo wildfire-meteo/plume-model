@@ -41,6 +41,7 @@ LINESTYLES = {
     "reference": "--",     # LES or observations
     "saturated": ":",
     "envelope": (0, (5, 2, 1, 2)),  # upper percentile of the reference data
+    "scaling": (0, (4, 2)),  # a scaling law compared with the quantity it should predict
     "zero": (0, (1, 3)),
 }
 

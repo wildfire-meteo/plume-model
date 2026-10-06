@@ -38,6 +38,10 @@ from plume_model import MortonEntrainment, Plume, PlumeBase
 HERE = Path(__file__).parent
 DRIVER = HERE / "js" / "run_parcel.mjs"
 
+# The reference implementation's w equation; its entrainment is MortonEntrainment's default.
+REFERENCE_A_W = 1.0
+REFERENCE_B_W = 0.2
+
 # Name in the JavaScript output, name on the Plume. Compared element by element.
 ARRAYS = {"z": "z", "p": "p", "T": "T", "Tv": "Tv", "Td": "Td", "thetal": "thetal",
           "thetav": "thetav", "qt": "qt", "area": "area", "w": "w", "buoy": "buoy",
@@ -66,7 +70,7 @@ def build_cases():
     cases = []
     for name, H, LE, area, opts in CASES:
         env = envs.CATALOGUE[name]()
-        base = PlumeBase(H, LE, area, env)
+        base = PlumeBase(H, LE, area, env, a_w=REFERENCE_A_W, b_w=REFERENCE_B_W)
         # The non-entraining mode needs a nominal w0 to seed an ascent with no fire.
         w0 = max(base.w0, 1e-3) if opts.get("full_ascent") else base.w0
         base.w0 = w0
@@ -94,6 +98,7 @@ def run_python(case):
     ent = MortonEntrainment(**{k: v for k, v in opts.items()
                                if k in ("fac_ent", "beta", "c_det")})
     plume = Plume(case["env"], case["base"], entrainment=ent,
+                  a_w=REFERENCE_A_W, b_w=REFERENCE_B_W,
                   z_max=opts.get("z_max", case["env"].z_top),
                   full_ascent=opts.get("full_ascent", False))
     return plume.ascend()

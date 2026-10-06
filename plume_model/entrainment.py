@@ -30,6 +30,8 @@ import numpy as np
 FAC_ENT = 1.0  # Non-dimensional scaling of entrainment, from Eyken (2026)
 BETA = 0.5     # Ratio of fractional detrainment to fractional entrainment
 C_DET = 2.0    # Dynamic detrainment -C_DET/w dw/dz where w decreases
+A_BUOYANT = 0.3        # Buoyancy-driven entrainment a B/w**2, from the LES plume core
+FAC_ENT_BUOYANT = 0.4  # Morton part of BuoyantEntrainment, from the LES plume core
 
 
 class MortonEntrainment:
@@ -47,3 +49,26 @@ class MortonEntrainment:
     def dynamic_detrainment(self, w, w_prev, dz):
         """Integrated exactly over the step, so M scales by (w/w_prev)**c_det."""
         return -self.c_det * np.log(w / w_prev) / dz
+
+
+class BuoyantEntrainment:
+    """Morton plus buoyancy-driven entrainment:
+
+        eps   = fac_ent / sqrt(A_0) + a max(B, 0) / w**2,
+        delta = beta fac_ent / sqrt(A_0).
+
+    B / w**2 is the inverse of the length over which buoyancy accelerates the plume, 
+    which is equal to fractional entrainment if plume area is constant. a sets the
+    efficiency of that process. This term is largest near plume base where w is small.
+    """
+
+    def __init__(self, a=A_BUOYANT, fac_ent=FAC_ENT_BUOYANT, beta=BETA, c_det=C_DET):
+        self.a = a
+        self.morton = MortonEntrainment(fac_ent, beta, c_det)
+
+    def rates(self, z, w, area, area_0, mass_flux, buoy):
+        eps_morton, delta = self.morton.rates(z, w, area, area_0, mass_flux, buoy)
+        return eps_morton + self.a * max(buoy, 0.0) / max(w, 1e-6) ** 2, delta
+
+    def dynamic_detrainment(self, w, w_prev, dz):
+        return self.morton.dynamic_detrainment(w, w_prev, dz)

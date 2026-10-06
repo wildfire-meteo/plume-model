@@ -18,20 +18,21 @@
 
 import numpy as np
 
-from .entrainment import MortonEntrainment
+from .entrainment import BuoyantEntrainment
 from .thermo import Rd, dewpoint, exner, g, qsat, sat_adjust, virtual_temp
 
-A_W = 1.0
-B_W = 0.2
+A_W = 0.5
+B_W = 0.5
 H0_PLUME = 20.0
-DZ_PLUME = 50.0
+DZ_PLUME = 10.0
 
 W_EPS = 1e-6
 
 
 class Plume:
-    """A Plume is a trajectory through an environment (env), from an initial state (base), with
-    a prescribed entrainment model (entrainment), on a grid with spacing dz until z_max.
+    """A Plume is a trajectory through an environment (env), from an initial state (base) at
+    height h0, with a prescribed entrainment model (entrainment), on a grid with spacing dz
+    until z_max.
 
     The main function is ascend, which integrates upwards a uniform grid. All profiles
     are calculated on this grid, including the environment on the plume's own grid and the
@@ -42,7 +43,7 @@ class Plume:
                  a_w=A_W, b_w=B_W, h0=H0_PLUME, full_ascent=False):
         self.env = env
         self.base = base
-        self.entrainment_model = MortonEntrainment() if entrainment is None else entrainment
+        self.entrainment_model = BuoyantEntrainment() if entrainment is None else entrainment
         self.dz = dz
         self.z_max = env.z_top if z_max is None else z_max
         self.a_w = a_w
@@ -57,10 +58,10 @@ class Plume:
         self.ascended = False
 
     def ascend(self):
-        """Integrate the plume from the surface up to where it stops, or to z_max."""
+        """Integrate the plume from h0 up to where it stops, or to z_max."""
         env = self.env
         dz = self.dz
-        n = int(np.floor(self.z_max / dz))
+        n = int(np.floor((self.z_max - self.h0) / dz)) + 1
 
         # Allocate all profiles
         self._allocate(n)
@@ -119,7 +120,8 @@ class Plume:
         return self
 
     def _allocate(self, n):
-        self.z = np.arange(n, dtype=float) * self.dz
+        # The base state is the plume at h0, so the integration starts there.
+        self.z = self.h0 + np.arange(n, dtype=float) * self.dz
         for name in ("thetal", "qt", "thetav", "T", "Tv", "area", "w", "mass_flux",
                      "entrainment", "detrainment", "eps", "delta", "delta_dyn",
                      "buoy", "u", "v", "x", "y", "dw2dz_buoy", "dw2dz_drag"):
@@ -142,7 +144,6 @@ class Plume:
         self.w[0] = base.w0
         self.mass_flux[0] = rho_e[0] * self.area[0] * self.w[0]
 
-        # The plume leaves the surface with the environmental momentum at h0.
         self.u[0] = np.interp(self.h0, env.z, env.u)
         self.v[0] = np.interp(self.h0, env.z, env.v)
 

@@ -43,3 +43,4 @@ class PlumeBase:
         self.dtheta = 0.0 if H <= 0 else (H / (rho * cp * np.sqrt(K))) ** (2 / 3)
         self.w0 = 0.0 if self.dtheta <= 0 else np.sqrt(K * self.dtheta)
         self.dq = 0.0 if self.w0 <= 0 else LE / (rho * Lv * self.w0)
+

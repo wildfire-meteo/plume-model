@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import config
-from plume_model import MortonEntrainment, Plume, PlumeBase
+from plume_model import Plume, PlumeBase
 from plume_model.thermo import qsat
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -52,7 +52,7 @@ def run_sweep(env):
         row = []
         for area in AREA_VALUES:
             base = PlumeBase(H, LE, area, env)
-            row.append(Plume(env, base, MortonEntrainment()).ascend())
+            row.append(Plume(env, base).ascend())
         plumes.append(row)
     return plumes
 

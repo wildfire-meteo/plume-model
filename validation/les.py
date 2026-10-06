@@ -46,6 +46,11 @@ T_START = 8220.0
 # Stand-in until the LES pressure profile is provided.
 P_SURFACE = 1e5
 
+# Depth over which theta' is smoothed before its budget is inverted for entrainment.
+SMOOTH_DEPTH = 60.0
+# Below this |theta'_core| [K] the core theta' budget is not inverted for entrainment.
+THETA_PRIME_CORE_MIN = 0.5
+
 
 def case_names():
     """The cases with a profile file, ordered by fire intensity, then wind speed."""
@@ -64,6 +69,16 @@ def pressure(case, z, p_sfc=P_SURFACE):
         # Trapezoidal dpi/dz = -g / (cp theta); theta_v = theta in the dry LES.
         pi[k] = pi[k - 1] - 0.5 * g * (z[k] - z[k - 1]) / cp * (1 / theta[k] + 1 / theta[k - 1])
     return p0 * pi ** (cp / Rd)
+
+
+def running_mean(z, values, depth):
+    """Mean of the finite values within depth/2 of each level."""
+    out = np.full_like(values, np.nan)
+    for k in range(len(z)):
+        near = (np.abs(z - z[k]) <= depth / 2) & np.isfinite(values)
+        if near.sum() > 2:
+            out[k] = values[near].mean()
+    return out
 
 
 def time_mean(values):
@@ -127,12 +142,20 @@ class LESCase:
         # Time-mean of the conditional upper percentiles, where the plume was detected.
         self.w_95 = time_mean(np.where(detected, ds.w_95th.values, np.nan))
         self.theta_prime_95 = time_mean(np.where(detected, ds.theta_95th.values, np.nan))
+        # The core: the centreline of the 95th-percentile w, and w_95 itself as its w.
+        self.theta_prime_core = time_mean(np.where(
+            detected, ds.w95_centerline_th.values - ds.theta_mean_profile_ref.values, np.nan))
+        self.w_core = self.w_95
+        self.w_core_centreline = time_mean(np.where(detected, ds.w95_centerline_w.values, np.nan))
+        self.u_core = time_mean(np.where(detected, ds.w95_centerline_u.values, np.nan))
 
         # Every snapshot's centreline starts at x = 0 at its lowest detected level.
         x_t = np.where(detected, ds.weighted_w_centerline_x.values, np.nan)
         k_low = np.argmax(detected, axis=1)
         x_t = x_t - x_t[np.arange(len(x_t)), k_low][:, None]
         self.x = time_mean(x_t)
+        x_core_t = np.where(detected, ds.w95_centerline_x.values, np.nan)
+        self.x_core = time_mean(x_core_t - x_core_t[np.arange(len(x_core_t)), k_low][:, None])
 
         self.w_t = np.where(detected, ds.w_mean.values, np.nan)
         self.theta_prime_t = np.where(detected, ds.theta_prime_mean.values, np.nan)
@@ -148,6 +171,25 @@ class LESCase:
         self.net_entrainment = np.full_like(self.z, np.nan)
         self.net_entrainment[inside] = np.gradient(np.log(self.volume_flux[inside]),
                                                    self.z[inside])
+
+        # Gross fractional entrainment from the top-hat theta' budget,
+        # dtheta'/dz = -eps theta' - dtheta_e/dz, with theta' smoothed over SMOOTH_DEPTH.
+        theta_prime = running_mean(self.z, self.theta_prime, SMOOTH_DEPTH)
+        self.gross_entrainment = -(np.gradient(theta_prime, self.z)
+                                   + np.gradient(self.theta_env, self.z)) / theta_prime
+        self.gross_entrainment[self.z > self.h_abl] = np.nan
+
+        # The same inversion for the core, at all heights: its dilution rate towards the
+        # environment, whatever air is actually mixed in.
+        theta_prime_core = running_mean(self.z, self.theta_prime_core, SMOOTH_DEPTH)
+        self.core_entrainment = -(np.gradient(theta_prime_core, self.z)
+                                  + np.gradient(self.theta_env, self.z)) / theta_prime_core
+        self.core_entrainment[np.abs(theta_prime_core) < THETA_PRIME_CORE_MIN] = np.nan
+        self.buoy_core = g * theta_prime_core / self.theta_env
+        # Net buoyancy-to-kinetic-energy efficiency of the core, d(w_core**2)/dz / 2B.
+        w_core = running_mean(self.z, self.w_core, SMOOTH_DEPTH)
+        self.core_efficiency = np.gradient(w_core**2, self.z) / (2 * self.buoy_core)
+        self.core_efficiency[np.abs(theta_prime_core) < THETA_PRIME_CORE_MIN] = np.nan
 
     def band(self, name, q=(25, 75)):
         """Spread over time of a per-snapshot profile: w, theta_prime, radius, x."""

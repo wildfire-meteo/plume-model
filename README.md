@@ -20,7 +20,7 @@ Build an environment, set the plume's base state from the fire's surface fluxes,
 
 ```python
 import numpy as np
-from plume_model import Environment, PlumeBase, Plume, MortonEntrainment
+from plume_model import Environment, PlumeBase, Plume, BuoyantEntrainment
 
 # Define on any ascending height grid z, T, Td, p, u, v in SI units.
 env = Environment(z, T, Td, p, u, v)
@@ -28,7 +28,7 @@ env = Environment(z, T, Td, p, u, v)
 # The fire's surface fluxes set the plume's excesses at its base.
 base = PlumeBase(H=50e3, LE=5e3, area=1e6, env=env)
 
-plume = Plume(env, base, MortonEntrainment(fac_ent=1.0, beta=0.5, c_det=2.0))
+plume = Plume(env, base, BuoyantEntrainment(a=0.3, fac_ent=0.4, beta=0.5, c_det=2.0))
 plume.ascend()
 
 print(plume.z_top, plume.w.max(), plume.area[plume.k_top])
@@ -42,12 +42,18 @@ the plume's own grid (`theta_env`, `thetav_env`, `T_env`, `Td_env`, `p_env`, `rh
 `k_top`, `z_top`, `k_lcl` and `stopped` describe where the ascent ended and whether it condensed.
 
 If the environment comes as potential temperature and total water, as LES output usually
-does, build it with `environment_from_theta(z, theta, qt, p, u, v)` instead.
+does, make the environemnt with `environment_from_theta(z, theta, qt, p, u, v)` instead.
 
-Classic non-entraining parcel theory is the same integrator with entrainment switched off:
+`Plume(env, base)` by default uses `d(w²)/dz = 2 (a_w B - b_w eps w²)` with `a_w = b_w = 0.5`.
+The default entrainment formulation is `eps = fac_ent/sqrt(A_0) + a max(B, 0)/w²`, with
+`fact_ent=0.4` and `a=0.3`.
+
+You can also use Morton-style entrainment (`eps = fac_ent/sqrt(A_0)`) and classic non-entraining
+parcel theory (`fac_ent=0.0`):
 
 ```python
-plume = Plume(env, base, MortonEntrainment(fac_ent=0.0), full_ascent=True).ascend()
+from plume_model import MortonEntrainment
+plume = Plume(env, base, MortonEntrainment(fac_ent=0.0), a_w=1.0, full_ascent=True).ascend()
 ```
 
 ### Validation runs
@@ -68,7 +74,9 @@ config.apply()
 ### Cross-check against (wildfire-meteo-dmt)[https://github.com/wildfire-meteo/wildfire-meteo-dmt]
 
 `validation/crosscheck_js.py` integrates a set of environments in both this package and the
-original JavaScript, and compares every returned array. It is local and optional: it needs
+original JavaScript, and compares every returned array. It runs this package with the
+reference implementation's configuration (`MortonEntrainment`, `a_w = 1`, `b_w = 0.2`),
+not with the default model. It is local and optional: it needs
 `node` and a checkout of `wildfire-meteo-dmt`, found via `$WILDFIRE_METEO_DMT` or at
 `../wildfire-meteo-dmt`, and skips with a message when either is absent.
 

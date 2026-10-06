@@ -21,6 +21,9 @@ as H, LE = 0 and the fire area as A_0, and compares plume top, top-hat w, radius
 volume flux, net entrainment and trajectory with the time-mean LES convective plume (les.py).
 Each plume top is on its own definition: the LES highest detected level (w > 1 m/s and
 tracer), the model's first level with w < 1e-6.
+
+This is the reference implementation's model, with Morton entrainment and its w equation;
+les_core_plume.py runs the default model.
 """
 
 import sys
@@ -33,19 +36,21 @@ from matplotlib.patches import Patch
 
 import config
 from plume_model import MortonEntrainment, Plume, PlumeBase
+from plume_model.plume import A_W, B_W, DZ_PLUME
 
 sys.path.insert(0, str(Path(__file__).parent))
 import les
+from crosscheck_js import REFERENCE_A_W, REFERENCE_B_W
 
 OUTPUT = Path(__file__).parent / "output" / "les_dry_line_fire"
 
 FLI_PROFILES = 10e6
 
 
-def run_model(case):
+def run_model(case, entrainment, dz=DZ_PLUME, a_w=A_W, b_w=B_W):
     env = case.environment()
-    base = PlumeBase(case.H, 0.0, case.area_fire, env)
-    return Plume(env, base, MortonEntrainment()).ascend()
+    base = PlumeBase(case.H, 0.0, case.area_fire, env, a_w=a_w, b_w=b_w)
+    return Plume(env, base, entrainment, dz=dz, a_w=a_w, b_w=b_w).ascend()
 
 
 def guide_line(ax, value, vertical=False):
@@ -76,6 +81,14 @@ def print_summary(cases, plumes):
     dz = np.array([p.z_top - c.z_top for c, p in zip(cases, plumes)])
     print("\nz_top error over all cases: mean %+.0f m, rms %.0f m" % (dz.mean(),
                                                                      np.sqrt(np.mean(dz**2))))
+
+
+def at_height(z, profile, z_at):
+    """profile at z_at, NaN above the profile's top."""
+    finite = np.isfinite(profile)
+    if not finite.any() or z_at > z[finite][-1]:
+        return np.nan
+    return np.interp(z_at, z[finite], profile[finite])
 
 
 def plot_environment(cases, path):
@@ -202,6 +215,29 @@ def plot_w_statistic(cases, plumes, path):
     plt.close(fig)
 
 
+def plot_sweep_plume_top(cases, sweep, title, path):
+    """One panel per sweep member: model z_top (solid) against LES z_top (dashed) over U."""
+    fig, axes = plt.subplots(1, len(sweep), figsize=(3.6 * len(sweep), 4), sharey=True)
+    for ax, (label, plumes) in zip(axes, sweep):
+        for i, fli in enumerate(fli_values(cases)):
+            pairs = [(c, p) for c, p in zip(cases, plumes) if c.fli == fli]
+            U = [c.U for c, _ in pairs]
+            color = config.run_color(i)
+            ax.errorbar(U, [c.z_top / 1e3 for c, _ in pairs],
+                        yerr=[c.z_top_std / 1e3 for c, _ in pairs], color=color,
+                        linestyle=config.LINESTYLES["reference"],
+                        marker=config.MARKERS["case"], capsize=3)
+            ax.plot(U, [p.z_top / 1e3 for _, p in pairs], color=color,
+                    linestyle=config.LINESTYLES["model"], label="FLI = %g MW/m" % (fli / 1e6))
+        ax.set_title(label)
+        ax.set_xlabel("U [m/s]")
+    axes[0].set_ylabel("plume top z_top [km]")
+    axes[0].legend(loc="lower left")
+    fig.suptitle(title + r": plume top (solid model, dashed LES $\pm$1 std)", y=1.04)
+    fig.savefig(path)
+    plt.close(fig)
+
+
 def plot_profiles(runs, title, path):
     """runs: (LESCase, Plume, label) triples, drawn in one colour each."""
     colors = config.sweep_colors(len(runs))
@@ -276,7 +312,8 @@ def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
 
     cases = [les.LESCase(name) for name in les.case_names()]
-    plumes = [run_model(case) for case in cases]
+    plumes = [run_model(case, MortonEntrainment(), a_w=REFERENCE_A_W, b_w=REFERENCE_B_W)
+              for case in cases]
     print_summary(cases, plumes)
 
     plot_environment(cases, OUTPUT / "environment.png")
