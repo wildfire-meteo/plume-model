@@ -74,11 +74,9 @@ config.apply()
 ### Cross-check against (wildfire-meteo-dmt)[https://github.com/wildfire-meteo/wildfire-meteo-dmt]
 
 `validation/crosscheck_js.py` integrates a set of environments in both this package and the
-original JavaScript, and compares every returned array. It runs this package with the
-reference implementation's configuration (`MortonEntrainment`, `a_w = 1`, `b_w = 0.2`),
-not with the default model. It is local and optional: it needs
-`node` and a checkout of `wildfire-meteo-dmt`, found via `$WILDFIRE_METEO_DMT` or at
-`../wildfire-meteo-dmt`, and skips with a message when either is absent.
+original JavaScript, and compares every returned array. It is local and optional: it needs
+`node` and `wildfire-meteo-dmt`, found via `$WILDFIRE_METEO_DMT` or at
+`../wildfire-meteo-dmt`.
 
 ```bash
 WILDFIRE_METEO_DMT=/path/to/wildfire-meteo-dmt python validation/crosscheck_js.py

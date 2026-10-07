@@ -16,6 +16,10 @@
 
 """Equivalence check of this package against the reference JavaScript implementation.
 
+Both sides run their default model: BuoyantEntrainment, the default w equation, and
+VentilatedPlumeBase with aspect ratio 1. The JavaScript base state is built from (H, LE, area)
+by fire_surface.js, as the web tool does, and compared with VentilatedPlumeBase.
+
 Local and optional: it needs `node` and a checkout of wildfire-meteo-dmt, located via
 $WILDFIRE_METEO_DMT or ../wildfire-meteo-dmt. It skips, and exits 0, when either is absent.
 """
@@ -33,12 +37,12 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 
 import environments as envs
-from plume_model import MortonEntrainment, Plume, PlumeBase
+from plume_model import BuoyantEntrainment, Plume, VentilatedPlumeBase
 
 HERE = Path(__file__).parent
 DRIVER = HERE / "js" / "run_parcel.mjs"
 
-# The reference implementation's w equation; its entrainment is MortonEntrainment's default.
+# The reference implementation's former w equation, kept for the LES scripts' reference runs.
 REFERENCE_A_W = 1.0
 REFERENCE_B_W = 0.2
 
@@ -48,16 +52,23 @@ ARRAYS = {"z": "z", "p": "p", "T": "T", "Tv": "Tv", "Td": "Td", "thetal": "theta
           "u": "u", "v": "v", "x": "x", "y": "y", "mass_flux": "mass_flux",
           "entrainment": "entrainment", "detrainment": "detrainment", "type": "saturated"}
 SCALARS = ["k_top", "k_lcl", "stopped"]
+BASE = ["dtheta", "dq", "w0", "area", "u_vent"]
 
-# Environment, sensible heat flux, latent heat flux, fire area, extra options.
+WINDY = {"u_sfc": 12.0, "v_sfc": -5.0}
+
+# Environment, its options, sensible heat flux, latent heat flux, fire area, JavaScript options.
 CASES = [
-    ("dry_neutral", 50e3, 0.0, 1e6, {}),
-    ("stable", 10e3, 0.0, 1e6, {}),
-    ("inversion", 100e3, 20e3, 1e5, {}),
-    ("sheared", 150e3, 10e3, 1e4, {}),
-    ("sheared", 40e3, 5e3, 1e6, {"beta": 0.2, "c_det": 4.0, "fac_ent": 2.0}),
-    ("dry_neutral", 50e3, 0.0, 1e6, {"fac_ent": 0.0, "full_ascent": True}),
-    ("inversion", 0.0, 0.0, 1e6, {}),
+    ("dry_neutral", {}, 50e3, 0.0, 1e6, {}),
+    ("stable", {}, 10e3, 0.0, 1e6, {}),
+    ("inversion", {}, 100e3, 20e3, 1e5, {}),
+    ("sheared", {}, 150e3, 10e3, 1e4, {}),
+    ("sheared", {}, 300e3, 0.0, 1e5, {}),
+    ("sheared", {}, 40e3, 5e3, 1e6, {"a_e": 1.0, "b_e": 0.6, "beta": 0.2, "c_det": 4.0}),
+    ("sheared", WINDY, 100e3, 10e3, 1e5, {}),
+    ("sheared", WINDY, 30e3, 0.0, 1e4, {}),
+    ("sheared", WINDY, 300e3, 0.0, 1e6, {"a_e": 0.1}),
+    ("sheared", WINDY, 50e3, 0.0, 1e6, {"non_entraining": True}),
+    ("inversion", {}, 0.0, 0.0, 1e6, {}),
 ]
 
 
@@ -68,45 +79,64 @@ def reference_repo():
 
 def build_cases():
     cases = []
-    for name, H, LE, area, opts in CASES:
-        env = envs.CATALOGUE[name]()
-        base = PlumeBase(H, LE, area, env, a_w=REFERENCE_A_W, b_w=REFERENCE_B_W)
-        # The non-entraining mode needs a nominal w0 to seed an ascent with no fire.
-        w0 = max(base.w0, 1e-3) if opts.get("full_ascent") else base.w0
-        base.w0 = w0
-        cases.append({"name": "%s_H%g_LE%g_A%g" % (name, H / 1e3, LE / 1e3, area),
-                      "env": env, "base": base, "opts": opts})
+    for name, env_opts, H, LE, area, opts in CASES:
+        env = envs.CATALOGUE[name](**env_opts)
+        label = "%s%s_H%g_LE%g_A%g" % (name, "_windy" if env_opts else "", H / 1e3, LE / 1e3, area)
+        if opts.get("non_entraining"):
+            label += "_classic"
+        cases.append({"name": label, "env": env, "H": H, "LE": LE, "area": area, "opts": opts})
     return cases
 
 
 def js_payload(cases):
     payload = []
     for c in cases:
-        env, base = c["env"], c["base"]
-        opts = dict(c["opts"])
-        opts.setdefault("z_max", env.z_top)
+        env = c["env"]
         payload.append({"z_env": env.z.tolist(), "T_env": env.T.tolist(),
                         "Td_env": env.Td.tolist(), "p_env": env.p.tolist(),
                         "u_env": env.u.tolist(), "v_env": env.v.tolist(),
-                        "dtheta": base.dtheta, "dq": base.dq, "w0": base.w0,
-                        "area": base.area, "opts": opts})
+                        "rho": float(env.rho[0]), "thetav": float(env.thetav[0]),
+                        "H": c["H"], "LE": c["LE"], "fire_area": c["area"],
+                        "z_max": float(env.z_top), "opts": c["opts"]})
     return payload
 
 
 def run_python(case):
+    """The Python equivalent of the web tool's entraining and non-entraining modes."""
     opts = case["opts"]
-    ent = MortonEntrainment(**{k: v for k, v in opts.items()
-                               if k in ("fac_ent", "beta", "c_det")})
-    plume = Plume(case["env"], case["base"], entrainment=ent,
-                  a_w=REFERENCE_A_W, b_w=REFERENCE_B_W,
-                  z_max=opts.get("z_max", case["env"].z_top),
-                  full_ascent=opts.get("full_ascent", False))
-    return plume.ascend()
+    env = case["env"]
+    base = VentilatedPlumeBase(case["H"], case["LE"], case["area"], env)
+    if opts.get("non_entraining"):
+        # The web tool seeds the non-entraining ascent with a nominal w0.
+        base.w0 = max(base.w0, 1e-3)
+        ent = BuoyantEntrainment(a=0.0, fac_ent=0.0)
+        plume = Plume(env, base, entrainment=ent, a_w=1.0, full_ascent=True)
+    else:
+        names = {"a_e": "fac_ent", "b_e": "a", "beta": "beta", "c_det": "c_det"}
+        ent = BuoyantEntrainment(**{names[k]: v for k, v in opts.items() if k in names})
+        plume = Plume(env, base, entrainment=ent)
+    return base, plume.ascend()
 
 
 def as_array(values):
     """JSON has no NaN; JSON.stringify writes null, which comes back as None."""
     return np.array([np.nan if x is None else x for x in values], dtype=float)
+
+
+def relative_difference(a, b):
+    return np.abs(a - b) / np.maximum(np.abs(a), 1e-30)
+
+
+def compare_base(js_base, base):
+    problems = []
+    worst = 0.0
+    for key in BASE:
+        rel = float(relative_difference(js_base[key], getattr(base, key)))
+        worst = max(worst, rel)
+        if rel > 1e-10:
+            problems.append("base %s: rel %.3e (js=%.12g py=%.12g)"
+                            % (key, rel, js_base[key], getattr(base, key)))
+    return problems, worst
 
 
 def compare(js, plume):
@@ -131,7 +161,7 @@ def compare(js, plume):
         if not np.array_equal(np.isfinite(a), np.isfinite(b)):
             problems.append("%s: NaN pattern differs" % js_key)
         finite = np.isfinite(a) & np.isfinite(b)
-        rel = np.abs(a[finite] - b[finite]) / np.maximum(np.abs(a[finite]), 1e-30)
+        rel = relative_difference(a[finite], b[finite])
         if rel.size:
             worst = max(worst, float(rel.max()))
             if rel.max() > 1e-10:
@@ -156,7 +186,7 @@ def main():
         cases_path = f.name
     try:
         result = subprocess.run(
-            ["node", str(DRIVER), str(repo / "web" / "parcel.js"), cases_path],
+            ["node", str(DRIVER), str(repo / "web"), cases_path],
             capture_output=True, text=True)
     finally:
         os.unlink(cases_path)
@@ -169,10 +199,15 @@ def main():
     n_failed = 0
     worst_all = 0.0
     for case, js in zip(cases, json.loads(result.stdout)):
-        problems, worst = compare(js, run_python(case))
+        base, plume = run_python(case)
+        base_problems, base_worst = compare_base(js["base"], base)
+        problems, worst = compare(js, plume)
+        problems = base_problems + problems
+        worst = max(worst, base_worst)
         worst_all = max(worst_all, worst)
-        print("%s %-34s n=%4d max rel diff %.2e"
-              % ("OK  " if not problems else "FAIL", case["name"], len(js["z"]), worst))
+        print("%s %-42s n=%4d u_vent %5.2f max rel diff %.2e"
+              % ("OK  " if not problems else "FAIL", case["name"], len(js["z"]),
+                 js["base"]["u_vent"], worst))
         for p in problems:
             print("       " + p)
         n_failed += bool(problems)
